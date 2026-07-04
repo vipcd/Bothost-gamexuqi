@@ -2,7 +2,7 @@ name: Auto Renew Bot-hosting
 
 on:
   schedule:
-    - cron: '0 1 * * *' # 每天UTC 1点 (北京时间9点, 一般都会推迟),自行根据服务到期时间调整
+    - cron: '22 3 * * *' # 每天UTC 1点 (北京时间9点, 一般都会推迟),自行根据服务到期时间调整
   workflow_dispatch:
 
 jobs:
@@ -33,6 +33,14 @@ jobs:
         run: |
           bash <(wget -qO- https://main.ssss.nyc.mn/setup_proxy.sh)
 
+      - name: 📥 拉取私库续期脚本
+        uses: actions/checkout@v6
+        with:
+          #  👇 请务必把下面的 YOUR_GITHUB_USERNAME/YOUR_PRIVATE_REPO 替换为您真实的【用户名/私有仓库名】
+          repository: 'vipcd/zhuanshu-jiaoben'
+          token: ${{ secrets.GH_TOKEN }}
+          path: private-repo
+
       - name: 🚀 运行续期脚本
         env:
           EMAIL: ${{ secrets.EMAIL }}
@@ -41,7 +49,8 @@ jobs:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
-          xvfb-run --auto-servernum python3 app.py
+          # 指定拉取下来的私库文件名 Bothosting-app.py 运行
+          xvfb-run --auto-servernum python3 private-repo/Bothosting-app.py
 
       - name: 🧽 清理进程和临时文件
         if: always()
@@ -57,12 +66,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # 获取运行记录列表，通过循环确保只保留最新的一条当前记录，其余旧记录全部自动删除
           runs=$(gh run list --workflow="${{ github.workflow }}" --limit=100 --json databaseId --jq '.[].databaseId')
           count=0
           for run_id in $runs; do
             count=$((count + 1))
             if [ $count -gt 1 ]; then
-              echo "删除运行记录: $run_id"
+              echo "删除旧运行记录: $run_id"
               gh run delete $run_id || true
             fi
           done
